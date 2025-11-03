@@ -242,7 +242,7 @@ const Home = () => {
                  Join a vibrant community of like-minded individuals who share your passion for technology. Network, learn, and grow together through workshops, hackathons, and collaborative projects.
                </p>
             </MotionWrapper>
-             <div className="overflow-hidden rounded-lg shadow-2xl shadow-emerald-500/20 border border-emerald-500/20 md:order-2">
+             <div className="overflow-hidden rounded-3xl shadow-xl shadow-emerald-500 border border-green-500/20 md:order-2">
                <motion.div whileHover={{ scale: 1.03 }} transition={{ duration: 0.25 }}>
                  <LazyImage
                  src="/img/home2.webp"
@@ -262,7 +262,7 @@ const Home = () => {
             animProps={{ initial: { opacity: 0, x: -100 }, whileInView: { opacity: 1, x: 0 }, transition: { duration: 0.8, delay: 0.2 }, viewport: { once: true, amount: 0.3 } }}
             className="grid md:grid-cols-2 gap-8 items-center mb-20"
           >
-             <div className="overflow-hidden rounded-lg shadow-2xl shadow-lime-500/20 border border-lime-500/20">
+             <div className="overflow-hidden rounded-3xl shadow-2xl shadow-emerald-500 border border-green-500/20">
                <motion.div whileHover={{ scale: 1.03 }} transition={{ duration: 0.25 }}>
                  <LazyImage
                  src="/img/home3.webp"
@@ -303,7 +303,7 @@ const Home = () => {
                  Transform your ideas into reality with the support of our talented community. From concept to deployment, Pulse Club provides the resources, guidance, and collaboration you need to succeed.
                </p>
             </MotionWrapper>
-             <div className="overflow-hidden rounded-lg shadow-2xl shadow-teal-500/20 border border-teal-500/20 md:order-2">
+             <div className="overflow-hidden rounded-3xl shadow-xl shadow-emerald-500 border-emerald-500 md:order-2">
                <motion.div whileHover={{ scale: 1.03 }} transition={{ duration: 0.25 }}>
                  <LazyImage
                  src="/img/home4.webp"
