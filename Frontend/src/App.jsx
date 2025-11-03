@@ -9,6 +9,7 @@ import LoadingScreen from "./Components/LoadingScreen";
 import PageTransitionLoader from "./Components/PageTransitionLoader";
 import GreenDustBackground from "./Components/GreenDustBackground";
 // import CustomCursor from "./Components/CustomCursor";
+import { waitForCriticalImages } from "./utils/preload";
 
 const App = () => {
   const location = useLocation();
@@ -21,8 +22,21 @@ const App = () => {
   }, [location.pathname]);
 
   useEffect(() => {
-    const t = setTimeout(() => setInitialLoading(false), 2600);
-    return () => clearTimeout(t);
+    let cancelled = false;
+    const run = async () => {
+      try {
+        await waitForCriticalImages(["img[data-preload=critical]"], 8000);
+      } finally {
+        if (!cancelled) {
+          setInitialLoading(false);
+          window.dispatchEvent(new Event("appReady"));
+        }
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

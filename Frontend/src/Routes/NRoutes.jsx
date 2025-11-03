@@ -1,31 +1,33 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import React from "react";
 import Home from "../Pages/Home";
-import Gallery from "../Pages/Gallery";
-import Events from "../Pages/Events";
-import Login from "../Pages/Login";
-import Register from "../Pages/Register";
-import About from "../Pages/About";
-import Alumini from "../Pages/Alumini";
-import Blood from "../Pages/Blood";
+const Gallery = React.lazy(() => import("../Pages/Gallery"));
+const Events = React.lazy(() => import("../Pages/Events"));
+const Login = React.lazy(() => import("../Pages/Login"));
+const Register = React.lazy(() => import("../Pages/Register"));
+const About = React.lazy(() => import("../Pages/About"));
+const Alumini = React.lazy(() => import("../Pages/Alumini"));
+const Blood = React.lazy(() => import("../Pages/Blood"));
 
 import ProtectedRoute from "../utils/ProtectedRoute";
 
-import AdminPanel from "../Pages/AdminPanel";
-import RegisteredEvents from "../Pages/RegisteredEvents";
+const AdminPanel = React.lazy(() => import("../Pages/AdminPanel"));
+const RegisteredEvents = React.lazy(() => import("../Pages/RegisteredEvents"));
 import AuthRoute from "../utils/AuthRoute";
 import { getUser } from "../utils/auth";
 import PleaseLogin from "../Pages/PleaseLogin";
 import ForgotPassword from "../Components/ForgotPassword";
-import UserDetails from "../Pages/UserDetails";
-import Team from "../Pages/Team";
-import Faculty from "../Pages/Faculty";
-import Zrotriya from "../Pages/Zrotriya";
+const UserDetails = React.lazy(() => import("../Pages/UserDetails"));
+const Team = React.lazy(() => import("../Pages/Team"));
+const Faculty = React.lazy(() => import("../Pages/Faculty"));
+const Zrotriya = React.lazy(() => import("../Pages/Zrotriya"));
 
 const NRoutes = () => {
   const user = getUser();
   const isAdmin = user?.role === "admin";
 
   return (
+    <React.Suspense fallback={null}>
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/gallery" element={<Gallery />} />
@@ -83,6 +85,7 @@ const NRoutes = () => {
         }
       />
     </Routes>
+    </React.Suspense>
   );
 };
 

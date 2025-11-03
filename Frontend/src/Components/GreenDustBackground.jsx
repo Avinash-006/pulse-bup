@@ -1,9 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 
 const GreenDustBackground = () => {
- <div>
-  
- </div>
+  return null;
 };
 
 export default GreenDustBackground;

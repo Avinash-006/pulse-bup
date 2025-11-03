@@ -16,13 +16,13 @@ const Alumini = () => {
   return (
     <div className="w-full min-h-screen blood-donors-background bg-black text-white py-16">
       <div className="container mx-auto px-4">
-        <h1 className="text-5xl font-extrabold text-center mb-8 tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-green-400">
+        <h1 className="text-5xl font-extrabold text-center mb-8 tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-slate-300 to-slate-500">
           Alumni Gallery
         </h1>
 
         {/* Year Selection Buttons */}
         <div className="flex justify-center mb-12 space-x-4">
-          <div className="absolute top-[10%]  left-[5%] w-64 h-64 bg-green-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+          <div className="absolute top-[10%]  left-[5%] w-40 h-40 bg-green-400 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-blob"></div>
           <button
             onClick={() => setActiveYear("2022")}
             className={`px-6 py-2 rounded-full text-lg font-semibold transition-colors duration-300 ${

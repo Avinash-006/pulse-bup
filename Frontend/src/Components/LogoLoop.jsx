@@ -250,7 +250,16 @@ export const LogoLoop = memo(
             title={item.title}
             loading="lazy"
             decoding="async"
+            fetchpriority={item.fetchpriority}
             draggable={false}
+            style={{ opacity: 0, transform: 'scale(1.02)', transition: 'opacity 300ms ease, transform 300ms ease' }}
+            onLoad={(e) => {
+              const t = e.currentTarget;
+              requestAnimationFrame(() => {
+                t.style.opacity = '1';
+                t.style.transform = 'none';
+              });
+            }}
           />
         );
 
@@ -320,7 +329,7 @@ export const LogoLoop = memo(
       <div
         ref={containerRef}
         className={rootClasses}
-        style={containerStyle}
+        style={{ contain: 'content', ...containerStyle }}
         role="region"
         aria-label={ariaLabel}
         onMouseEnter={handleMouseEnter}

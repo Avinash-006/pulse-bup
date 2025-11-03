@@ -9,7 +9,7 @@ const Prism = ({
   offset = { x: 0, y: 0 },
   noise = 0.5,
   transparent = true,
-  scale = 3.6,
+  scale = 6, // increased default to make the effect bigger
   hueShift = 0,
   colorFrequency = 1,
   hoverStrength = 2,
@@ -17,12 +17,22 @@ const Prism = ({
   bloom = 1,
   suspendWhenOffscreen = false,
   timeScale = 0.5,
+  maxDpr = 1.25, // lowered DPR cap for better perf
+  steps = 56, // lowered default loop iterations
+  suspendOnScroll = true,
+  pulseStrength = 1.6, // new prop to boost the pulse size/intensity
+  alwaysAnimate = true, // keep RAF alive for home load
+  keepRunningOffscreen = true, // don't stop due to IntersectionObserver
+  keepRunningWhenHidden = true, // don't stop on visibilitychange
 }) => {
   const containerRef = useRef(null);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+
+    // Fallback holder in case WebGL context cannot be created
+    let fallbackEl = null;
 
     const H = Math.max(0.001, height);
     const BW = Math.max(0.001, baseWidth);
@@ -43,25 +53,65 @@ const Prism = ({
     const HOVSTR = Math.max(0, hoverStrength || 1);
     const INERT = Math.max(0, Math.min(1, inertia || 0.12));
 
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const renderer = new Renderer({
-      dpr,
-      alpha: transparent,
-      antialias: false,
-    });
-    const gl = renderer.gl;
-    gl.disable(gl.DEPTH_TEST);
-    gl.disable(gl.CULL_FACE);
-    gl.disable(gl.BLEND);
+    const dpr = Math.min(maxDpr, window.devicePixelRatio || 1);
 
-    Object.assign(gl.canvas.style, {
-      position: "absolute",
-      inset: "0",
-      width: "100%",
-      height: "100%",
-      display: "block",
-    });
-    container.appendChild(gl.canvas);
+    let renderer = null;
+    let gl = null;
+
+    // Try creating the WebGL renderer, bail gracefully on failure
+    try {
+      renderer = new Renderer({
+        dpr,
+        alpha: transparent,
+        antialias: false,
+        powerPreference: 'high-performance',
+      });
+      gl = renderer.gl;
+      if (!gl) throw new Error('no-gl');
+    } catch (err) {
+      // WebGL is unavailable (context creation failed) - add a cheap fallback and stop
+      // Avoid throwing so the whole React tree doesn't crash
+      console.warn('Prism: WebGL unavailable, using fallback. ', err?.message || err);
+      fallbackEl = document.createElement('div');
+      fallbackEl.setAttribute('aria-hidden', 'true');
+      fallbackEl.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;background:linear-gradient(180deg, rgba(0,0,0,0.6), rgba(3,80,48,0.04));';
+      container.appendChild(fallbackEl);
+
+      // no-op cleanup
+      return () => {
+        if (fallbackEl && fallbackEl.parentElement === container) container.removeChild(fallbackEl);
+      };
+    }
+
+    // If we reach here, gl/renderer are available
+    try {
+      gl.disable(gl.DEPTH_TEST);
+      gl.disable(gl.CULL_FACE);
+      gl.disable(gl.BLEND);
+
+      Object.assign(gl.canvas.style, {
+        position: "absolute",
+        inset: "0",
+        width: "100%",
+        height: "100%",
+        display: "block",
+        willChange: 'transform',
+      });
+      container.appendChild(gl.canvas);
+    } catch (err) {
+      console.warn('Prism: failed to append canvas', err);
+      // cleanup renderer if available
+      try { if (gl && gl.canvas && gl.canvas.parentElement === container) container.removeChild(gl.canvas); } catch(_) {}
+      try { renderer = null; } catch (_) {}
+      // fallback
+      fallbackEl = document.createElement('div');
+      fallbackEl.setAttribute('aria-hidden', 'true');
+      fallbackEl.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;background:linear-gradient(180deg, rgba(0,0,0,0.6), rgba(3,80,48,0.04));';
+      container.appendChild(fallbackEl);
+      return () => {
+        if (fallbackEl && fallbackEl.parentElement === container) container.removeChild(fallbackEl);
+      };
+    }
 
     const vertex = /* glsl */ `
       attribute vec2 position;
@@ -71,7 +121,7 @@ const Prism = ({
     `;
 
     const fragment = /* glsl */ `
-      precision highp float;
+      precision mediump float;
 
       uniform vec2  iResolution;
       uniform float iTime;
@@ -94,6 +144,7 @@ const Prism = ({
       uniform float uMinAxis;
       uniform float uPxScale;
       uniform float uTimeScale;
+      uniform float uPulseStrength; // added uniform for pulse intensity
 
       vec4 tanh4(vec4 x){
         vec4 e2x = exp(2.0*x);
@@ -157,7 +208,7 @@ const Prism = ({
           wob = mat2(c0, c1, c2, c0);
         }
 
-        const int STEPS = 100;
+      const int STEPS = ${Math.max(16, Math.min(120, Math.floor(steps)))}; // lowered minimum and cap for perf
         for (int i = 0; i < STEPS; i++) {
           p = vec3(f, z);
           p.xz = p.xz * wob;
@@ -169,33 +220,34 @@ const Prism = ({
           o += (sin((p.y + z) * cf + vec4(0.0, 1.0, 2.0, 3.0)) + 1.0) / d;
         }
 
-        o = tanh4(o * o * (uGlow * uBloom) / 1e5);
+        // pulsing multiplier (bigger, but cheap)
+        float pulse = 1.0 + 0.6 * (0.5 + 0.5 * sin(iTime * uTimeScale * 2.0));
+
+        o = tanh4(o * o * (uGlow * uBloom) / 1e5 * pulse * uPulseStrength);
 
     // keep your glowing effect
-vec3 col = o.rgb;
+    vec3 col = o.rgb;
 
-// add some noise
-float n = rand(gl_FragCoord.xy + vec2(iTime));
-col += (n - 0.5) * uNoise;
-col = clamp(col, 0.0, 1.0);
+    // add some noise (scaled down)
+    float n = rand(gl_FragCoord.xy + vec2(iTime));
+    col += (n - 0.5) * uNoise * 0.5;
+    col = clamp(col, 0.0, 1.0);
 
-// now mix it into a green–black–silver palette
-vec3 green  = vec3(0.0, 1.0, 0.0);
-vec3 silver = vec3(0.75, 0.75, 0.75);
-vec3 black  = vec3(0.0, 0.0, 0.0);
+    // now mix it into a green–black–silver palette
+    vec3 green  = vec3(0.0, 1.0, 0.0);
+    vec3 silver = vec3(0.75, 0.75, 0.75);
+    vec3 black  = vec3(0.0, 0.0, 0.0);
 
-// blend green with silver
-vec3 tinted = mix(green, silver, 0.4); // 40% silver tint
-// then blend with black depending on brightness
-float brightness = dot(col, vec3(0.299, 0.587, 0.114));
-col = mix(black, tinted, brightness);
+    // blend green with silver
+    vec3 tinted = mix(green, silver, 0.4); // 40% silver tint
+    // then blend with black depending on brightness
+    float brightness = dot(col, vec3(0.299, 0.587, 0.114));
+    col = mix(black, tinted, brightness);
 
-// optional: saturation
-col = clamp(col * uSaturation, 0.0, 1.0);
+    // optional: saturation
+    col = clamp(col * uSaturation, 0.0, 1.0);
 
-gl_FragColor = vec4(col, o.a);
-
-        gl_FragColor = vec4(col, o.a);
+    gl_FragColor = vec4(col, o.a);
       }
     `;
 
@@ -229,6 +281,7 @@ gl_FragColor = vec4(col, o.a);
           value: 1 / ((gl.drawingBufferHeight || 1) * 0.1 * SCALE),
         },
         uTimeScale: { value: TS },
+        uPulseStrength: { value: Math.max(0, pulseStrength || 1.0) }, // new uniform
       },
     });
     const mesh = new Mesh(gl, { geometry, program });
@@ -281,6 +334,7 @@ gl_FragColor = vec4(col, o.a);
     };
 
     const NOISE_IS_ZERO = NOISE < 1e-6;
+    const ALWAYS = !!alwaysAnimate;
     let raf = 0;
     const t0 = performance.now();
     const startRAF = () => {
@@ -366,7 +420,7 @@ gl_FragColor = vec4(col, o.a);
           rotBuf
         );
 
-        if (NOISE_IS_ZERO) {
+        if (!ALWAYS && NOISE_IS_ZERO) {
           const settled =
             Math.abs(yaw - targetYaw) < 1e-4 &&
             Math.abs(pitch - targetPitch) < 1e-4 &&
@@ -384,7 +438,7 @@ gl_FragColor = vec4(col, o.a);
           roll,
           rotBuf
         );
-        if (TS < 1e-6) continueRAF = false;
+        if (!ALWAYS && TS < 1e-6) continueRAF = false;
       } else {
         rotBuf[0] = 1;
         rotBuf[1] = 0;
@@ -396,7 +450,7 @@ gl_FragColor = vec4(col, o.a);
         rotBuf[7] = 0;
         rotBuf[8] = 1;
         program.uniforms.uRot.value = rotBuf;
-        if (TS < 1e-6) continueRAF = false;
+        if (!ALWAYS && TS < 1e-6) continueRAF = false;
       }
 
       renderer.render({ scene: mesh });
@@ -407,7 +461,27 @@ gl_FragColor = vec4(col, o.a);
       }
     };
 
-    if (suspendWhenOffscreen) {
+    let scrollTimeout = 0;
+    const onVisibility = () => {
+      if (keepRunningWhenHidden) {
+        startRAF();
+      } else {
+        if (document.hidden) stopRAF();
+        else startRAF();
+      }
+    };
+    const onFocus = () => startRAF();
+    const onPageShow = () => startRAF();
+    const onScroll = () => {
+      if (keepRunningOffscreen || !suspendOnScroll) return;
+      stopRAF();
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        startRAF();
+      }, 120);
+    };
+
+    if (!keepRunningOffscreen && suspendWhenOffscreen) {
       const io = new IntersectionObserver((entries) => {
         const vis = entries.some((e) => e.isIntersecting);
         if (vis) startRAF();
@@ -420,6 +494,24 @@ gl_FragColor = vec4(col, o.a);
       startRAF();
     }
 
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('pageshow', onPageShow);
+    window.addEventListener('popstate', onFocus);
+    window.addEventListener('hashchange', onFocus);
+    window.addEventListener('scroll', onScroll, { passive: true });
+
+    // Handle WebGL context loss/restoration to ensure animation returns after navigation/tab switches
+    const onContextLost = (e) => {
+      try { e.preventDefault(); } catch(_) {}
+      // simplest robust recovery in SPA: reload to fully re-init GL resources
+      // avoids half-initialized states across routes on some devices
+      setTimeout(() => { try { window.location.reload(); } catch(_) {} }, 0);
+    };
+    const onContextRestored = () => startRAF();
+    gl.canvas.addEventListener('webglcontextlost', onContextLost, { passive: false });
+    gl.canvas.addEventListener('webglcontextrestored', onContextRestored);
+
     return () => {
       stopRAF();
       ro.disconnect();
@@ -429,11 +521,19 @@ gl_FragColor = vec4(col, o.a);
         window.removeEventListener("mouseleave", onLeave);
         window.removeEventListener("blur", onBlur);
       }
-      if (suspendWhenOffscreen) {
+      if (!keepRunningOffscreen && suspendWhenOffscreen) {
         const io = container.__prismIO;
         if (io) io.disconnect();
         delete container.__prismIO;
       }
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('pageshow', onPageShow);
+      window.removeEventListener('popstate', onFocus);
+      window.removeEventListener('hashchange', onFocus);
+      window.removeEventListener('scroll', onScroll);
+      gl.canvas.removeEventListener('webglcontextlost', onContextLost);
+      gl.canvas.removeEventListener('webglcontextrestored', onContextRestored);
       if (gl.canvas.parentElement === container)
         container.removeChild(gl.canvas);
     };
@@ -454,6 +554,9 @@ gl_FragColor = vec4(col, o.a);
     inertia,
     bloom,
     suspendWhenOffscreen,
+    maxDpr,
+    steps,
+    suspendOnScroll,
   ]);
 
   return <div className="w-full h-full relative" ref={containerRef} />;

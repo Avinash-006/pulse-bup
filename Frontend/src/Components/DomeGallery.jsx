@@ -126,6 +126,7 @@ export default function DomeGallery({
   maxRadius = Infinity,
   padFactor = 0.25,
   overlayBlurColor = "#060010",
+  enableBlur = true,
   maxVerticalRotationDeg = DEFAULTS.maxVerticalRotationDeg,
   dragSensitivity = DEFAULTS.dragSensitivity,
   enlargeTransitionMs = DEFAULTS.enlargeTransitionMs,
@@ -173,6 +174,17 @@ export default function DomeGallery({
   }, []);
 
   const items = useMemo(() => buildItems(images, segments), [images, segments]);
+
+  // Compute feature flags once for perf-sensitive styles
+  const shouldBlur = useMemo(() => {
+    try {
+      const cores = typeof navigator !== "undefined" ? (navigator.hardwareConcurrency || 4) : 4;
+      const supports = typeof CSS !== "undefined" && (CSS.supports?.("backdrop-filter", "blur(1px)") || CSS.supports?.("-webkit-backdrop-filter", "blur(1px)"));
+      return enableBlur && supports && cores >= 4;
+    } catch (_) {
+      return false;
+    }
+  }, [enableBlur]);
 
   const applyTransform = (xDeg, yDeg) => {
     const el = sphereRef.current;
@@ -864,6 +876,9 @@ export default function DomeGallery({
                       src={it.src}
                       draggable={false}
                       alt={it.alt}
+                      loading="lazy"
+                      decoding="async"
+                      fetchpriority="low"
                       className="w-full h-full object-cover pointer-events-none"
                       style={{
                         backfaceVisibility: "hidden",
@@ -890,7 +905,7 @@ export default function DomeGallery({
             style={{
               WebkitMaskImage: `radial-gradient(rgba(235, 235, 235, 0) 70%, var(--overlay-blur-color, ${overlayBlurColor}) 90%)`,
               maskImage: `radial-gradient(rgba(235, 235, 235, 0) 70%, var(--overlay-blur-color, ${overlayBlurColor}) 90%)`,
-              backdropFilter: "blur(3px)",
+              backdropFilter: shouldBlur ? "blur(3px)" : undefined,
             }}
           />
 
@@ -917,7 +932,7 @@ export default function DomeGallery({
               className="scrim absolute inset-0 z-10 pointer-events-none opacity-0 transition-opacity duration-500"
               style={{
                 background: "rgba(0, 0, 0, 0.4)",
-                backdropFilter: "blur(3px)",
+                backdropFilter: shouldBlur ? "blur(3px)" : undefined,
               }}
             />
             <div

@@ -121,6 +121,10 @@ body {
 }
 
 @layer utilities {
+  .cv-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: 1000px;
+  }
   .border-hsla {
     @apply border border-white/20;
   }

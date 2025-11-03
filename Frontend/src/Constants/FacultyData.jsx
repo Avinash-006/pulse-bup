@@ -33,7 +33,7 @@
     "S.No.": 4,
     "Emp ID": 855,
     "Name of the Faculty": "Dr.I.Govardhani",
-    Designation: "Principal ASC",
+    Designation: "HOD, ECE",
     Mobile: 9573548993,
     "mail ID": "govardhanee_ec@kluniversity.in",
     "Room No": "R102",
